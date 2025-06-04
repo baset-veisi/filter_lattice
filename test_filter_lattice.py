@@ -37,15 +37,13 @@ def test_fir_lattice():
 
 def test_iir_lattice():
     # Create a simple IIR filter (lowpass)
-    numerator = [1.0, 0.5]
     denominator = [1.0, -0.5, 0.25]
-    iir_filter = IIRFilter(numerator, denominator)
+    iir_filter = IIRFilter(denominator)
     
     # Convert to lattice
     lattice_filter = LatticeFilter.from_iir_filter(iir_filter)
     
     print("\nIIR to Lattice Test:")
-    print(f"Original IIR numerator: {numerator}")
     print(f"Original IIR denominator: {denominator}")
     print(f"Lattice reflection coefficients: {lattice_filter.reflection_coeffs}")
     print(f"Lattice feedforward coefficients: {lattice_filter.feedforward_coeffs}")
@@ -56,7 +54,7 @@ def test_iir_lattice():
     
     # Apply both filters
     from scipy import signal as scipy_signal
-    iir_output = scipy_signal.lfilter(numerator, denominator, signal)
+    iir_output = scipy_signal.lfilter([1.0], denominator, signal)
     lattice_output = lattice_filter.apply(signal)
     
     # Plot results

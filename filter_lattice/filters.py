@@ -62,24 +62,19 @@ class FIRFilter(Filter):
 class IIRFilter(Filter):
     """Infinite Impulse Response (IIR) filter implementation."""
     
-    def __init__(self, numerator: Union[List[float], np.ndarray], 
-                 denominator: Union[List[float], np.ndarray]):
+    def __init__(self, denominator: Union[List[float], np.ndarray]):
         """
-        Initialize an IIR filter with numerator and denominator coefficients.
+        Initialize an IIR filter with denominator coefficients.
         
         Args:
-            numerator: Numerator coefficients
-            denominator: Denominator coefficients
+            denominator: Denominator coefficients (A(z))
         """
-        self.numerator = np.asarray(numerator, dtype=np.float64)
         self.denominator = np.asarray(denominator, dtype=np.float64)
-        super().__init__(self.numerator)  # Store numerator as main coefficients
+        super().__init__(self.denominator)  # Store denominator as main coefficients
         self._validate_coefficients()
     
     def _validate_coefficients(self) -> None:
         """Validate IIR filter coefficients."""
-        if len(self.numerator) == 0:
-            raise ValueError("IIR filter must have at least one numerator coefficient")
         if len(self.denominator) == 0:
             raise ValueError("IIR filter must have at least one denominator coefficient")
         if self.denominator[0] == 0:
@@ -87,7 +82,7 @@ class IIRFilter(Filter):
     
     def get_order(self) -> int:
         """Get the IIR filter order."""
-        return max(len(self.numerator) - 1, len(self.denominator) - 1)
+        return len(self.denominator) - 1
     
     def get_transfer_function(self) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -96,4 +91,4 @@ class IIRFilter(Filter):
         Returns:
             Tuple containing (numerator, denominator) of the transfer function
         """
-        return self.numerator, self.denominator 
+        return np.array([1.0]), self.denominator 
