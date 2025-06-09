@@ -16,7 +16,11 @@ class Filter(ABC):
         Args:
             coefficients: Filter coefficients as a list or numpy array
         """
-        self.coefficients = np.asarray(coefficients, dtype=np.float64)
+        # Convert to numpy array and remove trailing zeros
+        coeffs = np.asarray(coefficients, dtype=np.float64)
+        # Find the last non-zero coefficient
+        last_nonzero = np.max(np.where(coeffs != 0)[0]) if np.any(coeffs != 0) else 0
+        self.coefficients = coeffs[:last_nonzero + 1]
         self._validate_coefficients()
     
     @abstractmethod
@@ -45,6 +49,8 @@ class FIRFilter(Filter):
         """Validate FIR filter coefficients."""
         if len(self.coefficients) == 0:
             raise ValueError("FIR filter must have at least one coefficient")
+        if not np.any(self.coefficients != 0):
+            raise ValueError("FIR filter coefficients cannot be all zero")
     
     def get_order(self) -> int:
         """Get the FIR filter order."""
@@ -62,27 +68,16 @@ class FIRFilter(Filter):
 class IIRFilter(Filter):
     """Infinite Impulse Response (IIR) filter implementation."""
     
-    def __init__(self, denominator: Union[List[float], np.ndarray]):
-        """
-        Initialize an IIR filter with denominator coefficients.
-        
-        Args:
-            denominator: Denominator coefficients (A(z))
-        """
-        self.denominator = np.asarray(denominator, dtype=np.float64)
-        super().__init__(self.denominator)  # Store denominator as main coefficients
-        self._validate_coefficients()
-    
     def _validate_coefficients(self) -> None:
         """Validate IIR filter coefficients."""
-        if len(self.denominator) == 0:
-            raise ValueError("IIR filter must have at least one denominator coefficient")
-        if self.denominator[0] == 0:
-            raise ValueError("First denominator coefficient cannot be zero")
+        if len(self.coefficients) == 0:
+            raise ValueError("IIR filter must have at least one coefficient")
+        if not np.any(self.coefficients != 0):
+            raise ValueError("IIR filter coefficients cannot be all zero")
     
     def get_order(self) -> int:
         """Get the IIR filter order."""
-        return len(self.denominator) - 1
+        return len(self.coefficients) - 1
     
     def get_transfer_function(self) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -91,4 +86,4 @@ class IIRFilter(Filter):
         Returns:
             Tuple containing (numerator, denominator) of the transfer function
         """
-        return np.array([1.0]), self.denominator 
+        return np.array([1.0]), self.coefficients 

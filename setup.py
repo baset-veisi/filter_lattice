@@ -7,12 +7,12 @@ setup(
     install_requires=[
         "numpy>=1.20.0",
     ],
-    author="Your Name",
-    author_email="your.email@example.com",
+    author="baset veisi",
+    author_email="basetveisy@gmail.com.com",
     description="A Python library for converting digital filters to lattice structures",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/filter_lattice",
+    url="https://github.com/baset-veisi/filter_lattice",
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Science/Research",
