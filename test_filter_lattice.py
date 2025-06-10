@@ -24,12 +24,26 @@ def compare_signals(sig1, sig2, name1, name2):
 
 def test_fir_lattice():
     print("\n=== FIR Lattice Filter Test ===")
-    fir_coeffs = [1.0, 0.5, 0.5,0.25]
+    fir_coeffs = [1, -2.55, -0.2, 0.3]
     fir_filter = FIRFilter(fir_coeffs)
     fir_lattice = tf2lattice(fir_coeffs, type_of_filter="FIR")
 
     print(f"FIR coefficients: {fir_coeffs}")
     print(f"Lattice reflection coefficients: {fir_lattice.reflection_coeffs}")
+
+    # Test transfer function recovery
+    recovered_num, recovered_den = fir_lattice.tf()
+    print(f"Original coefficients: {fir_coeffs}")
+    print(f"Recovered coefficients: {recovered_num}")
+    print(f"Recovery MSE: {np.mean((fir_coeffs - recovered_num) ** 2):.2e}")
+
+    # Test partial transfer function recovery
+    for stage in range(1, len(fir_coeffs)):
+        partial_num, partial_den = fir_lattice.tf(stage=stage)
+        print(f"\nPartial recovery up to stage {stage}:")
+        print(f"Original coefficients up to stage {stage}: {fir_coeffs[:stage+1]}")
+        print(f"Recovered coefficients: {partial_num}")
+        print(f"Recovery MSE: {np.mean((fir_coeffs[:stage+1] - partial_num) ** 2):.2e}")
 
     # Impulse response
     plt.figure(figsize=(10, 4))
@@ -77,6 +91,20 @@ def test_iir_lattice():
     print(f"IIR denominator coefficients: {iir_coeffs}")
     print(f"Lattice reflection coefficients: {iir_lattice.reflection_coeffs}")
 
+    # Test transfer function recovery
+    recovered_num, recovered_den = iir_lattice.tf()
+    print(f"Original coefficients: {iir_coeffs}")
+    print(f"Recovered coefficients: {recovered_den}")
+    print(f"Recovery MSE: {np.mean((iir_coeffs - recovered_den) ** 2):.2e}")
+
+    # Test partial transfer function recovery
+    for stage in range(1, len(iir_coeffs)):
+        partial_num, partial_den = iir_lattice.tf(stage=stage)
+        print(f"\nPartial recovery up to stage {stage}:")
+        print(f"Original coefficients up to stage {stage}: {iir_coeffs[:stage+1]}")
+        print(f"Recovered coefficients: {partial_den}")
+        print(f"Recovery MSE: {np.mean((iir_coeffs[:stage+1] - partial_den) ** 2):.2e}")
+
     # Impulse response
     # We should also plot the impulse response from the direct form using scipy.signal.lfilter simultaneously using the same plot
     plt.figure(figsize=(10, 4))
@@ -118,4 +146,15 @@ def test_iir_lattice():
 
 if __name__ == "__main__":
     test_fir_lattice()
-    test_iir_lattice() 
+    test_iir_lattice()
+
+    # Visual test: plot lattice diagrams for FIR and IIR filters
+    print("\nPlotting FIR Lattice Structure...")
+    fir_coeffs = [1, 0.5, 0.25, 0.34, 0.6, -0.3, 0.2]
+    fir_lattice = tf2lattice(fir_coeffs, type_of_filter="FIR")
+    fir_lattice.plot()
+
+    print("\nPlotting IIR Lattice Structure...")
+    iir_coeffs = [1.0, -0.5, 0.25, 0.1, -0.2]
+    iir_lattice = tf2lattice(iir_coeffs, type_of_filter="IIR")
+    iir_lattice.plot() 

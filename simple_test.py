@@ -83,7 +83,7 @@ def main():
     run_and_compare(fir_lattice, impulse, h, "FIR Impulse Response Test 1", k1, k2, k3)
 
     # Test Case 2
-    k1, k2, k3 = np.random.uniform(0, 1, 3)
+    k1, k2, k3 = [0.02, 0.1, -0.9]
     reflection_coeffs = [k1, k2, k3]
     fir_lattice = FIRLatticeFilter(reflection_coeffs)
     h = expected_impulse_response_fir(k1, k2, k3)

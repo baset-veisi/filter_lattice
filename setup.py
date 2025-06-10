@@ -6,9 +6,19 @@ setup(
     packages=find_packages(),
     install_requires=[
         "numpy>=1.20.0",
+        "matplotlib>=3.3.0",  # For visualization
     ],
+    extras_require={
+        'dev': [
+            'pytest>=6.0.0',
+            'pytest-cov>=2.0.0',
+            'black>=21.0.0',
+            'flake8>=3.9.0',
+            'mypy>=0.910',
+        ],
+    },
     author="baset veisi",
-    author_email="basetveisy@gmail.com.com",
+    author_email="basetveisy@gmail.com",  # Fixed the double .com
     description="A Python library for converting digital filters to lattice structures",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",

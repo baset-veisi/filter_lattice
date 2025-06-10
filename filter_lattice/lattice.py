@@ -7,6 +7,8 @@ from abc import ABC, abstractmethod
 from typing import Union, List, Tuple, Optional
 from .filters import Filter, FIRFilter, IIRFilter
 from .utils import FilterConversionError
+import warnings
+import matplotlib.pyplot as plt
 
 class LatticeFilter(ABC):
     """
@@ -23,11 +25,24 @@ class LatticeFilter(ABC):
             raise ValueError("At least one reflection coefficient is required.")
         if not np.any(self.reflection_coeffs != 0):
             raise ValueError("All reflection coefficients cannot be zero.")
-        if np.any(np.abs(self.reflection_coeffs) >= 1):
-            raise ValueError("Reflection coefficients must be in (-1, 1) for stability.")
+        # Do not check |k| >= 1 here; handle in subclasses
 
     @abstractmethod
     def filter(self, x: np.ndarray) -> np.ndarray:
+        pass
+
+    @abstractmethod
+    def tf(self, stage: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Get the transfer function coefficients.
+        
+        Args:
+            stage: Optional stage number up to which to calculate the transfer function.
+                  If None, uses all stages (order of the filter).
+                  
+        Returns:
+            Tuple of (numerator, denominator) polynomials.
+        """
         pass
 
     def get_order(self) -> int:
@@ -36,13 +51,60 @@ class LatticeFilter(ABC):
     def __str__(self):
         return f"{self.__class__.__name__}(order={self.order}, k={self.reflection_coeffs})"
 
+    def plot(self):
+        N = self.order
+        k = self.reflection_coeffs
+        fig, ax = plt.subplots(figsize=(2*N+2, 4))
+        ax.axis('off')
+        # Draw e-path (top)
+        for i in range(N+1):
+            ax.plot([i, i+1], [2, 2], 'k-', lw=2)
+            ax.text(i+0.5, 2.15, f"e{i}[n]", ha='center', va='bottom', fontsize=12)
+        ax.text(0, 2.3, 'x[n]', ha='center', va='bottom', fontsize=12, fontweight='bold')
+        ax.text(N+1, 2.3, 'y[n]', ha='center', va='bottom', fontsize=12, fontweight='bold')
+        # Draw b-path (bottom)
+        for i in range(N+1):
+            ax.plot([i, i+1], [0, 0], 'k-', lw=2)
+            ax.text(i+0.5, -0.15, f"b{i}[n]", ha='center', va='top', fontsize=12)
+        # Draw verticals and diagonals
+        for i in range(1, N+1):
+            # Vertical from e to b
+            ax.plot([i, i], [2, 0], 'k:', lw=1)
+            # Diagonal from b[i-1] to e[i]
+            ax.annotate('', xy=(i,2), xytext=(i-1,0), arrowprops=dict(arrowstyle='->', lw=1, color='tab:blue'))
+            # Diagonal from e[i-1] to b[i]
+            ax.annotate('', xy=(i,0), xytext=(i-1,2), arrowprops=dict(arrowstyle='->', lw=1, color='tab:red'))
+            # Reflection coefficient (actual value)
+            ax.text(i-0.5, 1, f"{k[i-1]:+.3f}", ha='center', va='center', fontsize=12, color='tab:blue')
+            # Delay
+            ax.text(i-0.5, -0.5, "z$^{-1}$", ha='center', va='center', fontsize=12, color='tab:gray')
+        plt.ylim(-1, 3)
+        plt.xlim(-0.5, N+1.5)
+        plt.title('FIR Lattice Structure', fontsize=14)
+        plt.show()
+
 class FIRLatticeFilter(LatticeFilter):
     """
     Symmetric FIR lattice filter implementation.
     """
-    def filter(self, x: np.ndarray) -> np.ndarray:
+    def _validate_coeffs(self):
+        if self.order == 0:
+            raise ValueError("At least one reflection coefficient is required.")
+        if not np.any(self.reflection_coeffs != 0):
+            raise ValueError("All reflection coefficients cannot be zero.")
+        # No |k| >= 1 check for FIR
+
+    def filter(self, x: np.ndarray, stage: Optional[int] = None) -> np.ndarray:
+        """
+        Filter the input signal x using the FIR lattice filter.
+        The outpus has length n + m, where n is the length of the input signal and m is the order of the filter.
+        The stage parameter is the number of stages to apply the lattice filter to.
+        If stage is not provided, the filter is applied to all stages.
+        """
+        if stage is None:
+            stage = self.order
         n = len(x)
-        m = self.order
+        m = stage
         y_len = n + m  # Output length
         f = np.zeros((m + 1, y_len))
         b = np.zeros((m + 1, y_len))
@@ -58,25 +120,182 @@ class FIRLatticeFilter(LatticeFilter):
 
         return f[m]
 
+    def tf(self, stage: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Get the transfer function coefficients for the FIR lattice filter.
+        
+        Args:
+            stage: Optional stage number up to which to calculate the transfer function.
+                  If None, uses all stages (order of the filter).
+                  
+        Returns:
+            Tuple of (numerator, denominator) polynomials.
+            For FIR, denominator is always [1.0].
+        """
+        if stage is None:
+            stage = self.order
+        elif stage < 0 or stage > self.order:
+            raise ValueError(f"Stage must be between 0 and {self.order}")
+            
+        n = stage
+        k = self.reflection_coeffs[:n]  # Only use coefficients up to the specified stage
+        
+        # Initialize polynomials
+        a = np.zeros(n + 1)
+        a[0] = 1.0  # a[0] is always 1
+        
+        # Forward recursion to get transfer function coefficients
+        for i in range(n):
+            a_prev = a.copy()
+            for j in range(1, i + 2):
+                a[j] = a_prev[j] - k[i] * a_prev[i + 1 - j]
+        
+        return a, np.array([1.0])
+
+    def plot(self):
+        N = self.order
+        k = self.reflection_coeffs
+        fig, ax = plt.subplots(figsize=(2*N+2, 4))
+        ax.axis('off')
+        # Draw e-path (top, right to left)
+        for i in range(N, -1, -1):
+            ax.plot([N-i, N-i+1], [2, 2], 'k-', lw=2)
+            ax.text(N-i+0.5, 2.15, f"e{i}[n]", ha='center', va='bottom', fontsize=12)
+        ax.text(0, 2.3, f'x[n]=e{N}[n]', ha='center', va='bottom', fontsize=12, fontweight='bold')
+        ax.text(N+1, 2.3, 'y[n]', ha='center', va='bottom', fontsize=12, fontweight='bold')
+        # Draw b-path (bottom, right to left)
+        for i in range(N, -1, -1):
+            ax.plot([N-i, N-i+1], [0, 0], 'k-', lw=2)
+            ax.text(N-i+0.5, -0.15, f"b{i}[n]", ha='center', va='top', fontsize=12)
+        # Draw verticals and diagonals
+        for i in range(N, 0, -1):
+            idx = N-i+1
+            # Vertical from e to b
+            ax.plot([idx, idx], [2, 0], 'k:', lw=1)
+            # Diagonal from b[i] to e[i-1]
+            ax.annotate('', xy=(idx,2), xytext=(idx-1,0), arrowprops=dict(arrowstyle='->', lw=1, color='tab:blue'))
+            # Diagonal from e[i] to b[i-1]
+            ax.annotate('', xy=(idx,0), xytext=(idx-1,2), arrowprops=dict(arrowstyle='->', lw=1, color='tab:red'))
+            # Reflection coefficients (actual value)
+            ax.text(idx-0.5, 1.2, f"+{k[i-1]:.3f}", ha='center', va='center', fontsize=12, color='tab:blue')
+            ax.text(idx-0.5, 0.8, f"-{k[i-1]:.3f}", ha='center', va='center', fontsize=12, color='tab:red')
+            # Delay
+            ax.text(idx-0.5, -0.5, "z$^{-1}$", ha='center', va='center', fontsize=12, color='tab:gray')
+        plt.ylim(-1, 3)
+        plt.xlim(-0.5, N+1.5)
+        plt.title('FIR Lattice Structure', fontsize=14)
+        plt.show()
+
 class IIRLatticeFilter(LatticeFilter):
     """
     Symmetric IIR lattice filter implementation.
     """    
-    def filter(self, x: np.ndarray) -> np.ndarray:
+    def _validate_coeffs(self):
+        if self.order == 0:
+            raise ValueError("At least one reflection coefficient is required.")
+        if not np.any(self.reflection_coeffs != 0):
+            raise ValueError("All reflection coefficients cannot be zero.")
+        if np.any(np.abs(self.reflection_coeffs) >= 1):
+            warnings.warn(
+                "At least one reflection coefficient has |k| >= 1. The filter may be unstable (one or more poles may be outside the unit circle).",
+                UserWarning
+            )
+
+    def filter(self, x: np.ndarray, stage: Optional[int] = None) -> np.ndarray:
+        """
+        Filter the input signal x using the IIR lattice filter.
+        The outpus has length n, where n is the length of the input signal.
+        The stage parameter is the number of stages to apply the lattice filter to.
+        If stage is not provided, the filter is applied to all stages.
+        """
+        if stage is None:
+            stage = self.order
         n = len(x)
-        m = self.order
+        m = stage
         k = self.reflection_coeffs
         b = np.zeros(m + 1, dtype=np.float64)
-        y= np.zeros(n, dtype=np.float64)
+        y = np.zeros(n, dtype=np.float64)
 
         for j in range(n):
             yt = x[j]
             for i in range(m - 1, -1, -1):
                 yt = yt + b[i] * k[i]
-                b[i + 1] = b[i] - yt * k[i] # Exremely inefficient, we are computing one extra term for every iteration on j
+                b[i + 1] = b[i] - yt * k[i]
             b[0] = yt
             y[j] = yt
         return y
+
+    def tf(self, stage: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Get the transfer function coefficients for the IIR lattice filter.
+        
+        Args:
+            stage: Optional stage number up to which to calculate the transfer function.
+                  If None, uses all stages (order of the filter).
+                  
+        Returns:
+            Tuple of (numerator, denominator) polynomials.
+            For IIR, numerator is always [1.0].
+        """
+        if stage is None:
+            stage = self.order
+        elif stage < 0 or stage > self.order:
+            raise ValueError(f"Stage must be between 0 and {self.order}")
+            
+        n = stage
+        k = self.reflection_coeffs[:n]  # Only use coefficients up to the specified stage
+        
+        # Initialize polynomials
+        a = np.zeros(n + 1)
+        a[0] = 1.0  # a[0] is always 1
+        
+        # Forward recursion to get transfer function coefficients
+        for i in range(n):
+            a_prev = a.copy()
+            for j in range(1, i + 2):
+                a[j] = a_prev[j] - k[i] * a_prev[i + 1 - j]
+        
+        return np.array([1.0]), a
+
+    def is_stable(self) -> bool:
+        """
+        Check if the IIR lattice filter is stable.
+        """
+        return np.all(np.abs(self.reflection_coeffs) < 1)
+
+    def plot(self):
+        N = self.order
+        k = self.reflection_coeffs
+        fig, ax = plt.subplots(figsize=(2*N+2, 4))
+        ax.axis('off')
+        # Draw e-path (top, right to left)
+        for i in range(N, -1, -1):
+            ax.plot([N-i, N-i+1], [2, 2], 'k-', lw=2)
+            ax.text(N-i+0.5, 2.15, f"e{i}[n]", ha='center', va='bottom', fontsize=12)
+        ax.text(0, 2.3, f'x[n]=e{N}[n]', ha='center', va='bottom', fontsize=12, fontweight='bold')
+        ax.text(N+1, 2.3, 'y[n]', ha='center', va='bottom', fontsize=12, fontweight='bold')
+        # Draw b-path (bottom, right to left)
+        for i in range(N, -1, -1):
+            ax.plot([N-i, N-i+1], [0, 0], 'k-', lw=2)
+            ax.text(N-i+0.5, -0.15, f"b{i}[n]", ha='center', va='top', fontsize=12)
+        # Draw verticals and diagonals
+        for i in range(N, 0, -1):
+            idx = N-i+1
+            # Vertical from e to b
+            ax.plot([idx, idx], [2, 0], 'k:', lw=1)
+            # Diagonal from b[i] to e[i-1]
+            ax.annotate('', xy=(idx,2), xytext=(idx-1,0), arrowprops=dict(arrowstyle='->', lw=1, color='tab:blue'))
+            # Diagonal from e[i] to b[i-1]
+            ax.annotate('', xy=(idx,0), xytext=(idx-1,2), arrowprops=dict(arrowstyle='->', lw=1, color='tab:red'))
+            # Reflection coefficients (actual value)
+            ax.text(idx-0.5, 1.2, f"+{k[i-1]:.3f}", ha='center', va='center', fontsize=12, color='tab:blue')
+            ax.text(idx-0.5, 0.8, f"-{k[i-1]:.3f}", ha='center', va='center', fontsize=12, color='tab:red')
+            # Delay
+            ax.text(idx-0.5, -0.5, "z$^{-1}$", ha='center', va='center', fontsize=12, color='tab:gray')
+        plt.ylim(-1, 3)
+        plt.xlim(-0.5, N+1.5)
+        plt.title('IIR Lattice Structure', fontsize=14)
+        plt.show()
 
 def tf2lattice(coeffs: Union[List[float], np.ndarray], type_of_filter: str="FIR") -> Union[FIRLatticeFilter, IIRLatticeFilter]:
     """
@@ -97,7 +316,6 @@ def tf2lattice(coeffs: Union[List[float], np.ndarray], type_of_filter: str="FIR"
     k = np.zeros(n)
     for i in range(n-1, -1, -1):
         k[i] = alpha[i]
-        print(f"k[{i}] = {k[i]}")
         if i > 0:
             alpha_prev = alpha.copy()
             for j in range(0, i):
