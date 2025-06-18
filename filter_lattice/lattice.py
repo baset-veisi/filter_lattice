@@ -283,10 +283,10 @@ class IIRLatticeFilter(LatticeFilter):
             idx = N-i+1
             # Vertical from e to b
             ax.plot([idx, idx], [2, 0], 'k:', lw=1)
-            # Diagonal from b[i] to e[i-1]
-            ax.annotate('', xy=(idx,2), xytext=(idx-1,0), arrowprops=dict(arrowstyle='->', lw=1, color='tab:blue'))
-            # Diagonal from e[i] to b[i-1]
-            ax.annotate('', xy=(idx,0), xytext=(idx-1,2), arrowprops=dict(arrowstyle='->', lw=1, color='tab:red'))
+            # Diagonal from e[i] to b[i-1] (down)
+            ax.annotate('', xy=(idx-1,0), xytext=(idx,2), arrowprops=dict(arrowstyle='->', lw=1, color='tab:blue'))
+            # Diagonal from b[i] to e[i-1] (up)
+            ax.annotate('', xy=(idx-1,2), xytext=(idx,0), arrowprops=dict(arrowstyle='->', lw=1, color='tab:red'))
             # Reflection coefficients (actual value)
             ax.text(idx-0.5, 1.2, f"+{k[i-1]:.3f}", ha='center', va='center', fontsize=12, color='tab:blue')
             ax.text(idx-0.5, 0.8, f"-{k[i-1]:.3f}", ha='center', va='center', fontsize=12, color='tab:red')
