@@ -15,8 +15,8 @@ class LatticeFilter(ABC):
     Abstract base class for symmetric lattice filters (FIR/IIR).
     Handles common logic and validation.
     """
-    def __init__(self, reflection_coeffs: Union[List[float], np.ndarray]):
-        self.reflection_coeffs = np.asarray(reflection_coeffs, dtype=np.float64)
+    def __init__(self, reflection_coeffs: Union[List[float], np.ndarray], dtype: np.dtype = np.float64):
+        self.reflection_coeffs = np.asarray(reflection_coeffs, dtype=dtype)
         self.order = len(self.reflection_coeffs)
         self._validate_coeffs()
 
@@ -152,7 +152,7 @@ class FIRLatticeFilter(LatticeFilter):
         
         return a, np.array([1.0])
 
-    def plot(self):
+    def plot(self, title: str = "FIR Lattice Structure"):
         N = self.order
         k = self.reflection_coeffs
         fig, ax = plt.subplots(figsize=(2*N+2, 4))
@@ -183,7 +183,7 @@ class FIRLatticeFilter(LatticeFilter):
             ax.text(idx-0.5, -0.5, "z$^{-1}$", ha='center', va='center', fontsize=12, color='tab:gray')
         plt.ylim(-1, 3)
         plt.xlim(-0.5, N+1.5)
-        plt.title('FIR Lattice Structure', fontsize=14)
+        plt.title(title, fontsize=14)
         plt.show()
 
 class IIRLatticeFilter(LatticeFilter):
@@ -263,7 +263,7 @@ class IIRLatticeFilter(LatticeFilter):
         """
         return np.all(np.abs(self.reflection_coeffs) < 1)
 
-    def plot(self):
+    def plot(self, title: str = "IIR Lattice Structure"):
         N = self.order
         k = self.reflection_coeffs
         fig, ax = plt.subplots(figsize=(2*N+2, 4))
@@ -294,10 +294,10 @@ class IIRLatticeFilter(LatticeFilter):
             ax.text(idx-0.5, -0.5, "z$^{-1}$", ha='center', va='center', fontsize=12, color='tab:gray')
         plt.ylim(-1, 3)
         plt.xlim(-0.5, N+1.5)
-        plt.title('IIR Lattice Structure', fontsize=14)
+        plt.title(title, fontsize=14)
         plt.show()
 
-def tf2lattice(coeffs: Union[List[float], np.ndarray], type_of_filter: str="FIR") -> Union[FIRLatticeFilter, IIRLatticeFilter]:
+def tf2lattice(coeffs: Union[List[float], np.ndarray], type_of_filter: str="FIR", dtype: np.dtype = np.float64) -> Union[FIRLatticeFilter, IIRLatticeFilter]:
     """
     This function converts a transfer function to a lattice filter.
         This is a direct implementation of the Levinson-Durbin recursion.
@@ -307,7 +307,7 @@ def tf2lattice(coeffs: Union[List[float], np.ndarray], type_of_filter: str="FIR"
         a = [1, -a1, -a2, ..., -aN]
         and then we can use the Levinson-Durbin recursion to compute the reflection coefficients.
     """
-    coeffs = np.asarray(coeffs, dtype=np.float64)
+    coeffs = np.asarray(coeffs, dtype=dtype)
     n = len(coeffs) - 1
     # Transform the coefficients to the form of A(z)
     if coeffs[0] == 0:
