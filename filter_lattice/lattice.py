@@ -83,6 +83,7 @@ class LatticeFilter(ABC):
         plt.title('FIR Lattice Structure', fontsize=14)
         plt.show()
 
+    
 class FIRLatticeFilter(LatticeFilter):
     """
     Symmetric FIR lattice filter implementation.
@@ -297,6 +298,87 @@ class IIRLatticeFilter(LatticeFilter):
         plt.title(title, fontsize=14)
         plt.show()
 
+class LatticeLadderFilter(LatticeFilter):
+    """
+    given a general iir filter with transfer function H(z) = B(z) / A(z),
+    where A0 = 1,, and B(z) \ne constant, we impleemnt the structure of a lattice ladder filter.
+    there will be reflection coefficcients, and now additionally, ladder coefficcients.
+    """
+    def __init__(self, reflection_coeffs: Union[List[float], np.ndarray], ladder_coeffs: Union[List[float], np.ndarray], dtype: np.dtype = np.float64):
+        self.reflection_coeffs = np.asarray(reflection_coeffs, dtype=dtype)
+        self.ladder_coeffs = np.asarray(ladder_coeffs, dtype=dtype)
+        self.order = len(self.reflection_coeffs)
+        self._validate_coeffs()
+
+    def _validate_coeffs(self):
+        if self.order == 0:
+            raise ValueError("At least one reflection coefficient is required.")
+        if not np.any(self.reflection_coeffs != 0):
+            raise ValueError("All reflection coefficients cannot be zero.")
+        if np.any(np.abs(self.reflection_coeffs) >= 1):
+            warnings.warn(
+                "At least one reflection coefficient has |k| >= 1. The filter may be unstable (one or more poles may be outside the unit circle).",
+                UserWarning
+            )
+
+    def filter(self, x: np.ndarray, stage: Optional[int] = None) -> np.ndarray:
+        """
+        Filter the input signal x using the lattice ladder filter.
+        The output has length m+n, where m is the order of the filter, and n is the length of the input signal.
+        The stage parameter is the number of stages to apply the lattice ladder filter to.
+        If stage is not provided, the filter is applied to all stages.
+        """
+        if stage is None:
+            stage = self.order
+        nx = len(x)
+        M = stage # number of reflection coeffs
+        y = np.zeros(nx)
+        f = np.zeros((M + 1, nx), dtype=np.float64)
+        g = np.zeros((M + 1, nx), dtype=np.float64)
+        f[M,0] = x[0]
+        k = self.reflection_coeffs
+        c = self.ladder_coeffs
+        #k = np.concatenate([k[:1], k[1:]])
+        print("In the .filter method the coeffs are:")
+        print(f"k = {k}")
+        for i in range(0, nx):
+            f[M,i] = x[i]
+            for j in range(M-1, -1, -1):
+                if i == 0:
+                    f[j,i] = f[j+1,i]
+                    g[j+1,i] = k[j] * f[j,i]
+                else:
+                    f[j,i] = f[j+1,i] - k[j] * g[j,i-1]
+                    g[j+1,i] = k[j] * f[j,i] + g[j,i-1]
+            g[0,i] = f[0,i]
+            for l in range(len(c)):
+                y[i] += c[l] * g[l,i]
+
+        # printing for debugging
+        # printing the full history, as f[j,i] = %number, g[j,i] = %number
+        print("f:")
+        for j in range(M+1):
+            for i in range(nx):
+                print(f"f[{j},{i}] = {f[j,i]:.3f}", end=" ")
+            print()
+        print("g:")
+        for j in range(M+1):
+            for i in range(nx):
+                print(f"g[{j},{i}] = {g[j,i]:.3f}", end=" ")
+            print()
+        print("y:")
+        for i in range(nx):
+            print(f"y[{i}] = {y[i]:.3f}", end=" ")
+        return y
+
+    def tf(self, stage: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray]:
+        raise NotImplementedError("The transfer function of the lattice ladder filter is not implemented.")
+
+    def plot(self, title: str = "Lattice Ladder Structure"):
+        raise NotImplementedError("The plot of the lattice ladder filter is not implemented.")
+
+
+
 def tf2lattice(coeffs: Union[List[float], np.ndarray], type_of_filter: str="FIR", dtype: np.dtype = np.float64) -> Union[FIRLatticeFilter, IIRLatticeFilter]:
     """
     This function converts a transfer function to a lattice filter.
@@ -307,24 +389,99 @@ def tf2lattice(coeffs: Union[List[float], np.ndarray], type_of_filter: str="FIR"
         a = [1, -a1, -a2, ..., -aN]
         and then we can use the Levinson-Durbin recursion to compute the reflection coefficients.
     """
-    coeffs = np.asarray(coeffs, dtype=dtype)
-    n = len(coeffs) - 1
-    # Transform the coefficients to the form of A(z)
-    if coeffs[0] == 0:
-        raise ValueError("The first coefficient of the FIR/IIR filter cannot be zero. If there is a pure delay, it should be handled separately.")
-    alpha = -coeffs[1:]/coeffs[0]
-    k = np.zeros(n)
-    for i in range(n-1, -1, -1):
-        k[i] = alpha[i]
-        if i > 0:
-            alpha_prev = alpha.copy()
-            for j in range(0, i):
-                alpha[j] = (alpha_prev[j] + k[i] * alpha_prev[i-j-1]) / (1 - k[i]**2)
-
+    # coeffs = np.asarray(coeffs, dtype=dtype)
+    # n = len(coeffs) - 1
+    # # Transform the coefficients to the form of A(z)
+    # if coeffs[0] == 0:
+    #     raise ValueError("The first coefficient of the FIR/IIR filter cannot be zero. If there is a pure delay, it should be handled separately.")
+    # alpha = -coeffs[1:]/coeffs[0]
+    # k = np.zeros(n)
+    # for i in range(n-1, -1, -1):
+    #     k[i] = alpha[i]
+    #     if i > 0:
+    #         alpha_prev = alpha.copy()
+    #         for j in range(0, i):
+    #             alpha[j] = (alpha_prev[j] + k[i] * alpha_prev[i-j-1]) / (1 - k[i]**2)
+    alpha_matrix = calculate_lpc_coeffs(coeffs, dtype)
+    k = np.diag(alpha_matrix)
     if type_of_filter == "FIR":
         return FIRLatticeFilter(k)
     elif type_of_filter == "IIR":
         return IIRLatticeFilter(k)
     else:
         raise ValueError("Invalid type of filter. Must be 'FIR' or 'IIR'.")
+
+def tf2ltc(tf: Tuple[np.ndarray, np.ndarray], dtype: np.dtype = np.float64) -> LatticeLadderFilter:
+    """
+    This function converts a transfer function to a lattice ladder filter.
+    """
+    b,a = tf
+    alpha = calculate_lpc_coeffs(a, dtype)
+    # Except for the first row, negate the rest of the rows
+    #alpha[1:,:] = -alpha[1:,:]
+    alpha = -alpha
+    print("Inside tf2tlc the corrected alpha matrix is ")
+    print(alpha)
+    print("####################")
+    M = len(a) 
+    M_check = len(b)
+    if M != M_check:
+        raise ValueError("The order of the numerator and denominator of the transfer function must be the same. Unequal orders are not supported.")
+    if M == 0:
+        raise ValueError("The transfer function must be a non-trivial filter.")
+    if M == 1:
+        return FIRLatticeFilter(np.array([1]))
+
+    k = np.diag(alpha)
+    c = np.zeros(M)
+    c[M-1] = b[M-1]
+    for m in range(M-2, -1, -1):
+        sum = 0
+        print("####################")
+        print("Inside Loop computations: ")
+        for i in range(m+1, M):
+            sum += alpha[i-1,i-m-1] * c[i]
+            print(f"sum = sum + alpha[{i-1},{i-m-1}] *  {c[i]}")
+            print("which is the same as numerically one by one:")
+            print(f"{sum} = {sum} + {alpha[i-1,i-m-1]} * {c[i]} ")
+        print("####################")
+        c[m] = b[m] - sum
+        print(f"c[{m}] = b[{m}] - sum")
+        print(f"which is the same as numerically one by one:")
+        print(f"{c[m]} = {b[m]} - {sum}")
+
+    print("inside tf2ltc, the reflection coeffs are:")
+    print(k)
+    print("the ladder coeffs are:")
+    print(c)
+    print("End of tf2ltc")
+    
+    return LatticeLadderFilter(k, c)
+    
+
+
+
+
+def calculate_lpc_coeffs(tf: Union[List[float], np.ndarray], dtype: np.dtype = np.float64) -> np.ndarray:
+        """
+        Calculate the reflection coefficients from the transfer function.
+        """
+        coeffs = np.asarray(tf, dtype=dtype)
+        n = len(coeffs) - 1
+        # Transform the coefficients to the form of A(z)
+        if coeffs[0] == 0:
+            raise ValueError("The first coefficient of the FIR/IIR filter cannot be zero. If there is a pure delay, it should be handled separately.")
+        alpha_matrix = np.zeros((n, n))
+        alpha_matrix[n-1,:] = -coeffs[1:]/coeffs[0]
+        k = np.zeros(n)
+        for i in range(n-1, -1, -1):
+            k[i] = alpha_matrix[i,i]
+            if i > 0:
+                #alpha_prev = alpha.copy()
+                for j in range(0, i):
+                    alpha_matrix[i-1,j] = (alpha_matrix[i,j] + k[i] * alpha_matrix[i,i-j-1]) / (1 - k[i]**2)
+        print("We're at calc_lpc_coeffs:")
+        print(alpha_matrix)
+        print("End of calc_lpc_coeff")
+        return alpha_matrix
 

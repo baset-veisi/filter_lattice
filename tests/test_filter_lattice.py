@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from scipy import signal as scipy_signal
 from filter_lattice import (
     FIRFilter, IIRFilter, LatticeFilter, FIRLatticeFilter, IIRLatticeFilter,
-    tf2lattice
+    tf2lattice, tf2ltc
 )
 
 # Utility functions
@@ -145,16 +145,42 @@ def test_iir_lattice():
     # compare_signals(iir_out, lattice_out, 'IIR Direct', 'IIR Lattice')
 
 if __name__ == "__main__":
-    test_fir_lattice()
-    test_iir_lattice()
+    # test_fir_lattice()
+    # test_iir_lattice()
 
-    # Visual test: plot lattice diagrams for FIR and IIR filters
-    print("\nPlotting FIR Lattice Structure...")
-    fir_coeffs = [1, 0.5, 0.25, 0.34, 0.6, -0.3, 0.2]
-    fir_lattice = tf2lattice(fir_coeffs, type_of_filter="FIR")
-    fir_lattice.plot()
+    # # Visual test: plot lattice diagrams for FIR and IIR filters
+    # print("\nPlotting FIR Lattice Structure...")
+    # fir_coeffs = [1, 0.5, 0.25, 0.34, 0.6, -0.3, 0.2]
+    # fir_lattice = tf2lattice(fir_coeffs, type_of_filter="FIR")
+    # fir_lattice.plot()
 
-    print("\nPlotting IIR Lattice Structure...")
-    iir_coeffs = [1.0, -0.5, 0.25, 0.1, -0.2]
+    # print("\nPlotting IIR Lattice Structure...")
+    # iir_coeffs = [1.0, -0.5, 0.25, 0.1, -0.2]
+    # iir_lattice = tf2lattice(iir_coeffs, type_of_filter="IIR")
+    # iir_lattice.plot() 
+
+    # test case 4
+    b = np.array([1, -0.5, 1])
+    a = np.array([1.0, 0.5, 0.25])
+    iir_coeffs = [1.0,  0.5, 0.25]
+    iir_filter = IIRFilter(a)
     iir_lattice = tf2lattice(iir_coeffs, type_of_filter="IIR")
-    iir_lattice.plot() 
+    kk = iir_lattice.reflection_coeffs
+    print(f"k = {kk}")
+    iir3 = tf2ltc((b,a))
+    inp = np.array([1,1,2,1,0.5,0,0,0,0,0])
+    yy = iir3.filter(inp)
+    print("")
+    print(f"yy = {yy}")
+
+    ## Using a normal filter to authenticate the result
+    signal = inp
+    direct_out = scipy_signal.lfilter(b,a,signal)
+    print(f"direct_out = {direct_out}")
+    print(f"Recovery MSE: {np.mean((direct_out - yy) ** 2):.5e}")
+
+    # # Test Case 3
+    # b = np.array([0.129, 0.3867, 0.3869, 0.129])
+    # a = np.array([1, -0.2971, 0.3564,-0.0276])
+    # iir3 = tf2ltc((b,a))
+    

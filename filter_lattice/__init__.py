@@ -20,7 +20,7 @@ __version__ = "0.1.0"
 
 # Core filter classes
 from .filters import Filter, IIRFilter, FIRFilter
-from .lattice import LatticeFilter, FIRLatticeFilter, IIRLatticeFilter, tf2lattice
+from .lattice import LatticeFilter, FIRLatticeFilter, IIRLatticeFilter, tf2lattice, tf2ltc
 from .utils import FilterConversionError
 
 # Define public API
@@ -37,6 +37,7 @@ __all__: List[str] = [
     
     # Conversion functions
     'tf2lattice',
+    'tf2ltc',
     
     # Exceptions
     'FilterConversionError',

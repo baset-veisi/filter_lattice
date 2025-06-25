@@ -135,5 +135,8 @@ def main():
     iir3 = IIRLatticeFilter(np.array(k3s))    
     run_and_compare_iir3(iir3, x, h3, "IIR Algebraic Test 3 (3 coeffs) - Case 2", *k3s)
     
+    
+
+
 if __name__ == "__main__":
     main() 
