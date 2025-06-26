@@ -9,6 +9,7 @@ from .filters import Filter, FIRFilter, IIRFilter
 from .utils import FilterConversionError
 import warnings
 import matplotlib.pyplot as plt
+from matplotlib.patches import Circle
 
 class LatticeFilter(ABC):
     """
@@ -339,8 +340,8 @@ class LatticeLadderFilter(LatticeFilter):
         k = self.reflection_coeffs
         c = self.ladder_coeffs
         #k = np.concatenate([k[:1], k[1:]])
-        print("In the .filter method the coeffs are:")
-        print(f"k = {k}")
+        # print("In the .filter method the coeffs are:")
+        # print(f"k = {k}")
         for i in range(0, nx):
             f[M,i] = x[i]
             for j in range(M-1, -1, -1):
@@ -356,28 +357,132 @@ class LatticeLadderFilter(LatticeFilter):
 
         # printing for debugging
         # printing the full history, as f[j,i] = %number, g[j,i] = %number
-        print("f:")
-        for j in range(M+1):
-            for i in range(nx):
-                print(f"f[{j},{i}] = {f[j,i]:.3f}", end=" ")
-            print()
-        print("g:")
-        for j in range(M+1):
-            for i in range(nx):
-                print(f"g[{j},{i}] = {g[j,i]:.3f}", end=" ")
-            print()
-        print("y:")
-        for i in range(nx):
-            print(f"y[{i}] = {y[i]:.3f}", end=" ")
+        # print("f:")
+        # for j in range(M+1):
+        #     for i in range(nx):
+        #         print(f"f[{j},{i}] = {f[j,i]:.3f}", end=" ")
+        #     print()
+        # print("g:")
+        # for j in range(M+1):
+        #     for i in range(nx):
+        #         print(f"g[{j},{i}] = {g[j,i]:.3f}", end=" ")
+        #     print()
+        # print("y:")
+        # for i in range(nx):
+        #     print(f"y[{i}] = {y[i]:.3f}", end=" ")
         return y
 
     def tf(self, stage: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray]:
         raise NotImplementedError("The transfer function of the lattice ladder filter is not implemented.")
 
-    def plot(self, title: str = "Lattice Ladder Structure"):
-        raise NotImplementedError("The plot of the lattice ladder filter is not implemented.")
+    def plot(self, title: str = "Lattice-Ladder Structure"):
+        """Visualise the lattice-ladder filter.
 
+        The drawing follows the same right-to-left convention used in
+        `IIRLatticeFilter.plot`.  The lattice section occupies the
+        y-coordinates 0 (backward path) and 2 (forward path).  A ladder
+        section is appended at y = -1, fed from every backward path node
+        `b_i[n]` through the ladder coefficients `c_i`.  The final sum of
+        these ladder branches forms the output *y(n)*.
+        """
+        import matplotlib.pyplot as plt  # local import to avoid tkinter issues on headless
 
+        N = self.order                         # number of reflection coeffs
+        k = np.asarray(self.reflection_coeffs) # reflection coefficients (k_1 … k_N)
+        c = np.asarray(self.ladder_coeffs)     # ladder coefficients (c_0 … c_N)
+
+        fig, ax = plt.subplots(figsize=(2 * N + 4, 5))
+        ax.axis("off")
+
+        # ------------------------------------------------------------------
+        # 1.  LATTICE SECTION  (identical style to IIRLatticeFilter.plot)
+        # ------------------------------------------------------------------
+        # Forward path  (f_i[n])  – drawn on y = 2   (right-to-left)
+        for i in range(N, -1, -1):
+            x0, x1 = N - i, N - i + 1
+            ax.plot([x0, x1], [2, 2], "k-", lw=2)
+            ax.text((x0 + x1) / 2, 2.15, f"f{i}(n)", ha="center", va="bottom", fontsize=11)
+
+        ax.text(0, 2.35, f"x(n)=f{N}(n)", ha="center", va="bottom", fontsize=12, fontweight="bold")
+        ax.text(N + 1, 2.35, "f0(n)", ha="center", va="bottom", fontsize=12, fontweight="bold")
+
+        # Backward path  (b_i[n]) – drawn on y = 0   (right-to-left)
+        for i in range(N, -1, -1):
+            x0, x1 = N - i, N - i + 1
+            ax.plot([x0, x1], [0, 0], "k-", lw=2)
+            ax.text(N-i+0.5, -0.15, f"b{i}(n)", ha='center', va='top', fontsize=12)
+        # Draw adders at all lattice nodes (top & bottom)
+        for node_x in range(N + 1):
+            draw_adder(ax, node_x, 2)  # forward path adder
+            draw_adder(ax, node_x, 0)  # backward path adder
+
+        # Stage connections (vertical / diagonal lines) & reflection coeffs
+        for stage in range(N, 0, -1):
+            idx = N - stage + 1  # x-coordinate of current stage interface
+            # vertical dashed helper (for visual aid only)
+            ax.plot([idx, idx], [2, 0], "k:", lw=1)
+            # Diagonal down (f_i -> b_{i-1})
+            ax.annotate('', xy=(idx - 1 + 0.05, 0), xytext=(idx - 0.05, 2),
+                        arrowprops=dict(arrowstyle='->', lw=1, color='tab:blue', shrinkB=10))
+            # Diagonal up (b_i -> f_{i-1})
+            ax.annotate('', xy=(idx - 1 + 0.05, 2), xytext=(idx - 0.05, 0),
+                        arrowprops=dict(arrowstyle='->', lw=1, color='tab:red', shrinkB=10))
+            # Reflection coefficient values (+k / -k)
+            ax.text(idx - 0.5, 1.2, f"+{k[stage - 1]:.3f}", ha='center', va='center',
+                    fontsize=11, color='tab:blue')
+            ax.text(idx - 0.5, 0.8, f"-{k[stage - 1]:.3f}", ha='center', va='center',
+                    fontsize=11, color='tab:red')
+            # Delay annotation
+            ax.text(idx - 0.5, -0.5, "z$^{-1}$", ha='center', va='center', fontsize=10, color='tab:gray')
+
+        # ------------------------------------------------------------------
+        # 2.  LADDER SECTION  (looks like a tapped-delay FIR)
+        # ------------------------------------------------------------------
+        ladder_y = -1  # y-coordinate of ladder signal
+        left_x     = -0.5
+        right_x    = N + 1.5
+
+        # Main ladder signal path (left segment up to last tap)
+        ax.plot([left_x, N], [ladder_y, ladder_y], 'k-', lw=2)
+
+        # For each tap: vertical line + coefficient label + adder node on ladder path
+        taps = min(len(c), N + 1)
+        for tap in range(taps):
+            # Bottom node for b_tap is located at integer x = N - tap
+            source_x = N - tap  # exact node position on b-path
+            dest_x   = source_x  # tap lands vertically below on ladder line
+
+            # Solid dark-green arrow from b_i node down to ladder path
+            ax.annotate('', xy=(dest_x, ladder_y + 0.05), xytext=(source_x, 0 - 0.05),
+                        arrowprops=dict(arrowstyle='->', lw=1.5, color='forestgreen', shrinkB=10))
+
+            # Adder (circle) on ladder path
+            draw_adder(ax, dest_x, ladder_y, r=0.1)
+
+        # Output arrow from last bottom adder to the right
+        output_end_x = right_x
+        ax.annotate('', xy=(output_end_x, ladder_y), xytext=(N, ladder_y),
+                    arrowprops=dict(arrowstyle='->', lw=2))
+        ax.text(output_end_x + 0.2, ladder_y, 'y(n)', ha='left', va='center', fontsize=12, fontweight='bold')
+
+        # ------------------------------------------------------------------
+        # 3.  Cosmetics
+        # ------------------------------------------------------------------
+        # Connect f0(n) and b0(n) with a solid vertical line
+        ax.plot([N + 1, N + 1], [2, 0], 'k-', lw=2)
+
+        ax.set_xlim(-0.8, output_end_x + 1.2)
+        ax.set_ylim(ladder_y - 1.0, 3.0)
+        plt.title(title, fontsize=14)
+        plt.show()
+
+def draw_adder(ax, x, y, r=0.12):
+    """Draw a small adder (plus-in-circle) at (x, y)."""
+    circ = Circle((x, y), r, fill=False, color='k', lw=1.3, zorder=3)
+    ax.add_patch(circ)
+    # horizontal and vertical lines
+    ax.plot([x - r*0.6, x + r*0.6], [y, y], 'k-', lw=1, zorder=4)
+    ax.plot([x, x], [y - r*0.6, y + r*0.6], 'k-', lw=1, zorder=4)
 
 def tf2lattice(coeffs: Union[List[float], np.ndarray], type_of_filter: str="FIR", dtype: np.dtype = np.float64) -> Union[FIRLatticeFilter, IIRLatticeFilter]:
     """
@@ -389,19 +494,6 @@ def tf2lattice(coeffs: Union[List[float], np.ndarray], type_of_filter: str="FIR"
         a = [1, -a1, -a2, ..., -aN]
         and then we can use the Levinson-Durbin recursion to compute the reflection coefficients.
     """
-    # coeffs = np.asarray(coeffs, dtype=dtype)
-    # n = len(coeffs) - 1
-    # # Transform the coefficients to the form of A(z)
-    # if coeffs[0] == 0:
-    #     raise ValueError("The first coefficient of the FIR/IIR filter cannot be zero. If there is a pure delay, it should be handled separately.")
-    # alpha = -coeffs[1:]/coeffs[0]
-    # k = np.zeros(n)
-    # for i in range(n-1, -1, -1):
-    #     k[i] = alpha[i]
-    #     if i > 0:
-    #         alpha_prev = alpha.copy()
-    #         for j in range(0, i):
-    #             alpha[j] = (alpha_prev[j] + k[i] * alpha_prev[i-j-1]) / (1 - k[i]**2)
     alpha_matrix = calculate_lpc_coeffs(coeffs, dtype)
     k = np.diag(alpha_matrix)
     if type_of_filter == "FIR":
@@ -420,9 +512,9 @@ def tf2ltc(tf: Tuple[np.ndarray, np.ndarray], dtype: np.dtype = np.float64) -> L
     # Except for the first row, negate the rest of the rows
     #alpha[1:,:] = -alpha[1:,:]
     alpha = -alpha
-    print("Inside tf2tlc the corrected alpha matrix is ")
-    print(alpha)
-    print("####################")
+    # print("Inside tf2tlc the corrected alpha matrix is ")
+    # print(alpha)
+    # print("####################")
     M = len(a) 
     M_check = len(b)
     if M != M_check:
@@ -437,24 +529,24 @@ def tf2ltc(tf: Tuple[np.ndarray, np.ndarray], dtype: np.dtype = np.float64) -> L
     c[M-1] = b[M-1]
     for m in range(M-2, -1, -1):
         sum = 0
-        print("####################")
-        print("Inside Loop computations: ")
+        # print("####################")
+        # print("Inside Loop computations: ")
         for i in range(m+1, M):
             sum += alpha[i-1,i-m-1] * c[i]
-            print(f"sum = sum + alpha[{i-1},{i-m-1}] *  {c[i]}")
-            print("which is the same as numerically one by one:")
-            print(f"{sum} = {sum} + {alpha[i-1,i-m-1]} * {c[i]} ")
-        print("####################")
+        #     print(f"sum = sum + alpha[{i-1},{i-m-1}] *  {c[i]}")
+        #     print("which is the same as numerically one by one:")
+        #     print(f"{sum} = {sum} + {alpha[i-1,i-m-1]} * {c[i]} ")
+        # print("####################")
         c[m] = b[m] - sum
-        print(f"c[{m}] = b[{m}] - sum")
-        print(f"which is the same as numerically one by one:")
-        print(f"{c[m]} = {b[m]} - {sum}")
+        # print(f"c[{m}] = b[{m}] - sum")
+        # print(f"which is the same as numerically one by one:")
+        # print(f"{c[m]} = {b[m]} - {sum}")
 
-    print("inside tf2ltc, the reflection coeffs are:")
-    print(k)
-    print("the ladder coeffs are:")
-    print(c)
-    print("End of tf2ltc")
+    # print("inside tf2ltc, the reflection coeffs are:")
+    # print(k)
+    # print("the ladder coeffs are:")
+    # print(c)
+    # print("End of tf2ltc")
     
     return LatticeLadderFilter(k, c)
     
@@ -480,8 +572,8 @@ def calculate_lpc_coeffs(tf: Union[List[float], np.ndarray], dtype: np.dtype = n
                 #alpha_prev = alpha.copy()
                 for j in range(0, i):
                     alpha_matrix[i-1,j] = (alpha_matrix[i,j] + k[i] * alpha_matrix[i,i-j-1]) / (1 - k[i]**2)
-        print("We're at calc_lpc_coeffs:")
-        print(alpha_matrix)
-        print("End of calc_lpc_coeff")
+        # print("We're at calc_lpc_coeffs:")
+        # print(alpha_matrix)
+        # print("End of calc_lpc_coeff")
         return alpha_matrix
 

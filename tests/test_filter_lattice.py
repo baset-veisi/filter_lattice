@@ -160,15 +160,14 @@ if __name__ == "__main__":
     # iir_lattice.plot() 
 
     # test case 4
-    b = np.array([1, -0.5, 1])
-    a = np.array([1.0, 0.5, 0.25])
+    b = np.array([1, -0.5, 1, 0.33])
+    a = np.array([1.0, 0.5, 0.25, 0.1])
     iir_coeffs = [1.0,  0.5, 0.25]
     iir_filter = IIRFilter(a)
     iir_lattice = tf2lattice(iir_coeffs, type_of_filter="IIR")
     kk = iir_lattice.reflection_coeffs
-    print(f"k = {kk}")
     iir3 = tf2ltc((b,a))
-    inp = np.array([1,1,2,1,0.5,0,0,0,0,0])
+    inp = np.array([1,1,2,1,0.5,0,0,0,0,0,1,1,1,1,1,1,1,0,0,0,0,0])
     yy = iir3.filter(inp)
     print("")
     print(f"yy = {yy}")
