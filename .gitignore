@@ -46,3 +46,6 @@ build/
 # Environment variables
 .env 
 notebooks/biquadInC66.c
+
+# C code
+*.c

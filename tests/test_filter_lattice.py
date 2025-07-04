@@ -145,21 +145,21 @@ def test_iir_lattice():
     # compare_signals(iir_out, lattice_out, 'IIR Direct', 'IIR Lattice')
 
 if __name__ == "__main__":
-    # test_fir_lattice()
-    # test_iir_lattice()
+    test_fir_lattice()
+    test_iir_lattice()
 
-    # # Visual test: plot lattice diagrams for FIR and IIR filters
-    # print("\nPlotting FIR Lattice Structure...")
-    # fir_coeffs = [1, 0.5, 0.25, 0.34, 0.6, -0.3, 0.2]
-    # fir_lattice = tf2lattice(fir_coeffs, type_of_filter="FIR")
-    # fir_lattice.plot()
+    # Visual test: plot lattice diagrams for FIR and IIR filters
+    print("\nPlotting FIR Lattice Structure...")
+    fir_coeffs = [1, 0.5, 0.25, 0.34, 0.6, -0.3, 0.2]
+    fir_lattice = tf2lattice(fir_coeffs, type_of_filter="FIR")
+    fir_lattice.plot()
 
-    # print("\nPlotting IIR Lattice Structure...")
-    # iir_coeffs = [1.0, -0.5, 0.25, 0.1, -0.2]
-    # iir_lattice = tf2lattice(iir_coeffs, type_of_filter="IIR")
-    # iir_lattice.plot() 
+    print("\nPlotting IIR Lattice Structure...")
+    iir_coeffs = [1.0, -0.5, 0.25, 0.1, -0.2]
+    iir_lattice = tf2lattice(iir_coeffs, type_of_filter="IIR")
+    iir_lattice.plot() 
 
-    # test case 4
+    # Test Case 3
     b = np.array([1, -0.5, 1, 0.33])
     a = np.array([1.0, 0.5, 0.25, 0.1])
     iir_coeffs = [1.0,  0.5, 0.25]
@@ -172,14 +172,23 @@ if __name__ == "__main__":
     print("")
     print(f"yy = {yy}")
 
-    ## Using a normal filter to authenticate the result
-    signal = inp
-    direct_out = scipy_signal.lfilter(b,a,signal)
-    print(f"direct_out = {direct_out}")
-    print(f"Recovery MSE: {np.mean((direct_out - yy) ** 2):.5e}")
+    # ## Using a normal filter to authenticate the result
+    # signal = inp
+    # direct_out = scipy_signal.lfilter(b,a,signal)
+    # print(f"direct_out = {direct_out}")
+    # print(f"Recovery MSE: {np.mean((direct_out - yy) ** 2):.5e}")
 
-    # # Test Case 3
-    # b = np.array([0.129, 0.3867, 0.3869, 0.129])
-    # a = np.array([1, -0.2971, 0.3564,-0.0276])
-    # iir3 = tf2ltc((b,a))
+
+    # Test Case 6
+    # IIR second order filter
+    a = np.array([1, -0.5, 0.25])
+    b = np.array([1, 0, 0])
+    iir5 = tf2lattice(a, type_of_filter="IIR")
+    ref_coeffs = iir5.reflection_coeffs
+    print(f"ref_coeffs = {ref_coeffs}")
+    out = iir5.filter(np.array([1,0,0,0,0,0,0,0,0,0,0,0]))
+    print(f"out = {out}")
+    out2 = scipy_signal.lfilter(b, a, np.array([1,0,0,0,0,0,0,0,0,0,0,0]))
+    print(f"out2 = {out2}")
+    print(f"Recovery MSE: {np.mean((out2 - out) ** 2):.5e}")
     
